@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>xcrypt_aes – AES-256-GCM Encryption Tool (README)</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 30px;
+      max-width: 800px;
+      line-height: 1.6;
+    }
+    h1, h2, h3, h4 {
+      color: #333;
+    }
+    code {
+      background-color: #f4f4f4;
+      padding: 2px 4px;
+      font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+      color: #c7254e;
+    }
+    pre {
+      background: #f4f4f4;
+      padding: 10px;
+      overflow: auto;
+      border-left: 4px solid #ccc;
+    }
+    .command {
+      background-color: #eee;
+      padding: 0.2em 0.4em;
+    }
+  </style>
+</head>
+<body>
+
+<h1>xcrypt_aes – AES-256-GCM Encryption Tool</h1>
+
+<p>
+  <strong>xcrypt_aes</strong> is a Linux command-line application that encrypts or decrypts files using
+  <em>AES-256-GCM</em> with password-based key derivation. It is designed for secure, in-place operation:
+  the original file is atomically replaced with its encrypted or decrypted version to prevent partial writes
+  or data corruption.
+</p>
+
+<hr>
+
+<h2>Features</h2>
+<ul>
+  <li>Uses <strong>AES-256-GCM</strong> for authenticated encryption.</li>
+  <li>Leverages <strong>Argon2id</strong> for password-based key derivation (KDF) with large memory usage (64 MiB by default),
+      making brute-force attacks difficult.</li>
+  <li>Embeds a random salt in the file header, ensuring a unique encryption key per file.</li>
+  <li>Uses a 12-byte random nonce (IV) for AES-GCM, stored in the file header.</li>
+  <li>Atomic, in-place file overwrite using <code>fs::rename</code> after writing to a temporary file.</li>
+  <li>Zeroizes passwords and sensitive buffers in memory after use.</li>
+  <li>Limits files to a maximum size of <strong>5 GiB</strong>.</li>
+</ul>
+
+<hr>
+
+<h2>System Requirements</h2>
+<ul>
+  <li>A modern <strong>Linux</strong> distribution (64-bit recommended).</li>
+  <li>Rust and Cargo (1.56+), available via <code>rustup</code> or your package manager.</li>
+  <li>GNU Make, if you prefer building with a Makefile (optional).</li>
+  <li>Sufficient system RAM to accommodate Argon2id’s memory usage (64 MiB by default).</li>
+</ul>
+
+<hr>
+
+<h2>Installation & Build</h2>
+
+<ol>
+  <li><strong>Clone or download</strong> the repository containing <code>xcrypt_aes</code> source code.</li>
+  <li>
+    In the project directory, check or create a file named <code>Cargo.toml</code> containing dependencies:
+    <pre><code>[package]
+name = "xcrypt_aes"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+aes-gcm = "0.10"
+argon2 = "0.5"
+rand = "0.8"
+rpassword = "7.3.1"
+zeroize = "1.8"
+</code></pre>
+  </li>
+  <li><strong>Build</strong> the project with Cargo:
+    <pre><code>cargo build --release</code></pre>
+    The compiled binary can be found at:
+    <code>target/release/xcrypt_aes</code>.
+  </li>
+  <li>Optionally, <strong>install</strong> it into your <code>~/.cargo/bin</code> path:
+    <pre><code>cargo install --path .</code></pre>
+  </li>
+</ol>
+
+<hr>
+
+<h2>Usage</h2>
+
+<p>
+  Once built, the usage is straightforward. 
+  Run <code>xcrypt_aes &lt;FILE&gt;</code> to encrypt or decrypt the file <em>in-place</em>.
+  The program checks whether the file is already encrypted by looking at its 8-byte magic header.
+</p>
+
+<pre><code>Usage: xcrypt_aes &lt;FILE&gt;</code></pre>
+
+<ul>
+  <li><strong>Encryption</strong>:
+    <ol>
+      <li>Call <code>xcrypt_aes &lt;myfile&gt;</code> if <code>myfile</code> is a plain text/binary file.</li>
+      <li>When prompted, enter your encryption password, and confirm it.</li>
+      <li>The file is replaced with its encrypted version.</li>
+    </ol>
+  </li>
+  <li><strong>Decryption</strong>:
+    <ol>
+      <li>Call <code>xcrypt_aes &lt;myfile&gt;</code> if <code>myfile</code> is already encrypted (detected by the magic header).</li>
+      <li>When prompted, enter the decryption password.</li>
+      <li>The file is replaced with its <em>decrypted</em> original content.</li>
+    </ol>
+  </li>
+</ul>
+
+<h3>Example Sessions</h3>
+
+<pre><code>$ echo \"Secret message\" &gt; document.txt
+$ xcrypt_aes document.txt
+Enter password to encrypt:
+Confirm password:
+# Encrypted in place. The file is now unreadable if opened in a text editor.
+
+$ xcrypt_aes document.txt
+Enter password to decrypt:
+# If password is correct, 'document.txt' is restored to the original plaintext.
+</code></pre>
+
+<hr>
+
+<h2>File Format</h2>
+<p>
+  Encrypted files use a simple header structure, followed by the ciphertext and authentication tag:
+</p>
+<ol>
+  <li><strong>Magic header (8 bytes)</strong> – By default <code>AES256GC</code> to identify the file.</li>
+  <li><strong>Salt (16 bytes)</strong> – Random salt for Argon2id, stored in plaintext.</li>
+  <li><strong>Nonce (12 bytes)</strong> – The random IV for AES-GCM, stored in plaintext.</li>
+  <li><strong>Ciphertext + GCM Tag</strong> – The encrypted data and the 16-byte tag appended by GCM.</li>
+</ol>
+<p>
+  During decryption, the salt and nonce are read from the file header, used to derive the AES-256 key
+  (via Argon2id) and initialize the cipher, then the ciphertext is decrypted in place.
+</p>
+
+<hr>
+
+<h2>Security Considerations</h2>
+<ul>
+  <li><strong>Argon2id</strong> parameters are set to 64 MiB memory and 3 iterations by default. 
+      You can adjust these for performance or security trade-offs.</li>
+  <li>A unique salt and random nonce are generated for every encryption, ensuring independent keys per file.</li>
+  <li>
+    The program uses an <em>atomic overwrite</em> strategy by writing output to 
+    <code>&lt;FILENAME&gt;.tmp</code> then renaming over the original. This prevents partial file exposure if
+    an error or crash occurs.
+  </li>
+  <li>All passwords and key material are zeroized from memory once encryption/decryption completes.</li>
+  <li>
+    <strong>Do not reuse your password across many large files</strong> if possible. Though each file’s salt
+    ensures a unique key, using the same password for critical data can raise the stakes for brute-force attempts.
+  </li>
+  <li>
+    On Linux, ensure that <code>~/.cargo/bin</code> or wherever the binary resides has proper permissions, and 
+    that your system’s random number generator (<code>/dev/urandom</code>) is operational.
+  </li>
+  <li>
+    Files larger than <code>5 GiB</code> are rejected. If you need to handle larger files, you must modify 
+    <code>MAX_FILE_SIZE</code> or implement streaming encryption. Be sure you have enough RAM for Argon2 if you do so.
+  </li>
+</ul>
+
+<hr>
+
+<h2>License & Disclaimer</h2>
+<p>
+  This software is provided <em>as is</em> without warranty of any kind. It is your responsibility
+  to handle passwords, backups, and data retention in a secure manner. Any modifications or custom
+  builds are at your own risk.
+</p>
+<p>
+  For a typical open-source license, you might add MIT or Apache-2.0. Please include a LICENSE file
+  in your repository if you intend to distribute this widely.
+</p>
+
+<hr>
+
+<h2>Further Improvements</h2>
+<ul>
+  <li><strong>Streaming Support</strong>: Instead of loading the entire file into memory, you can implement a 
+      streaming approach (reading and encrypting in chunks). This is safer for very large files and lower RAM usage.</li>
+  <li><strong>AES-GCM-SIV or AES-SIV</strong>: If you want <em>nonce misuse resistance</em>, you can replace 
+      AES-GCM with AES-GCM-SIV (RFC 8452) or AES-SIV. These modes tolerate accidental nonce reuse more safely, at 
+      the cost of some performance overhead.</li>
+  <li><strong>Multi-threaded Argon2</strong>: If you have many CPU cores, you can increase <code>parallelism</code> 
+      in Argon2 parameters for faster key derivation, at the expense of more CPU usage.</li>
+</ul>
+
+<hr>
+
+<h2>Contact</h2>
+<p>
+  For questions, bug reports, or contributions, please visit the project repository on 
+  <strong>GitHub</strong> or contact the maintainer directly.
+</p>
+
+</body>
+</html>
+
