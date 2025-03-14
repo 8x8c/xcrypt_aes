@@ -13,9 +13,9 @@ see /docs
 
 Authenticated Encryption with Associated Data (AEAD) algorithms provide both confidentiality and integrity for data. This document compares three modern AEAD schemes in terms of their cryptographic strength and resistance to attacks. The schemes under consideration are:
 
-1. **AES-GCM (AES in Galois/Counter Mode)**
+1. **AES-GCM-SIV**
 2. **XChaCha20-Poly1305**
-3. **AES-GCM-SIV**
+3. **AES-GCM (AES in Galois/Counter Mode)**
 
 Below, each algorithm is discussed in detail, covering the encryption process, key management, security features, and resistance to known attack vectors. Finally, a ranking is provided—from 1 (strongest) to 3 (least strong)—based on both theoretical strength and real-world security considerations.
 
